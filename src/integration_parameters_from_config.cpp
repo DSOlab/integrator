@@ -246,53 +246,40 @@ dso::IntegrationParameters::from_config(const char *fn,
     }
   }
 
-  /* Satellite attitude (if model satellite-attitude::data_file is non-empty) */
-  dso::SatelliteAttitude *satat = nullptr;
-  dso::attitude_details::MeasuredAttitudeData *mad = nullptr;
-  if (is_nonempty_string(config["satellite-attitude"]["data_file"])) {
-    const auto d = config["satellite-attitude"]["data_file"].as<std::string>();
-    try {
-      satat = new dso::MeasuredAttitude(sat, d.c_str());
-      mad = new dso::attitude_details::MeasuredAttitudeData(
-          dso::measured_attitude_data_factory(sat));
-    } catch (std::exception &e) {
-      fprintf(stderr, e.what());
-      std::string err_msg = "[ERROR] Failed to construct a SatelliteAttitude "
-                            "and/or MeasuredAttitudeData instance from "
-                            "config parameters " +
-                            d + " (traceback:" + std::string(__func__) + ")\n";
-      throw std::runtime_error(err_msg);
+  /* Satellite attitude */
+  dso::Attitude *satat = nullptr;
+  {
+    if (is_nonempty_string(config["satellite-attitude"]["data_file"])) {
+      const auto d =
+          config["satellite-attitude"]["data_file"].as<std::string>();
+      try {
+        satat = new dso::Attitude(sat, d.c_str());
+      } catch (std::exception &e) {
+        fprintf(stderr, e.what());
+        std::string err_msg = "[ERROR] Failed to construct a SatelliteAttitude "
+                              "and/or MeasuredAttitudeData instance from "
+                              "config parameters " +
+                              d + " (traceback:" + std::string(__func__) +
+                              ")\n";
+        throw std::runtime_error(err_msg);
+      }
+    } else {
+      satat = new dso::Attitude(sat, nullptr);
     }
   }
   params.matt = satat;   // attitude
-  params.mattdata = mad; // attitude data (for retrieving attitude from stream)
 
-  /* create the macromodel (independent of attitude) */
-  dso::SatelliteMacromodel *satmm = nullptr;
-  {
-    try {
-      satmm = new dso::SatelliteMacromodel(
-          dso::SatelliteMacromodel::createSatelliteMacromodel(sat));
-    } catch (std::exception &e) {
-      fprintf(stderr, e.what());
-      std::string err_msg = "[ERROR] Failed to construct a SatelliteMacromodel"
-                            " instance from config parameters (traceback:" +
-                            std::string(__func__) + ")\n";
-      throw std::runtime_error(err_msg);
-    }
     if (is_nonempty_string(config["satellite-attitude"]["cnes_sat_file"])) {
       const auto c =
           config["satellite-attitude"]["cnes_sat_file"].as<std::string>();
-      if (satmm->load_satellite_mass_correction(c.c_str(), tt_midepoch)) {
+      if (satat->load_satellite_mass_correction(c.c_str(), tt_midepoch)) {
         std::string err_msg = "[ERROR] Failed loading CNES satellite file " +
                               c + " (traceback:" + std::string(__func__) +
                               ")\n";
         throw std::runtime_error(err_msg);
       }
     }
-  }
-  params.msatmm = satmm; // macromodel (maybe used or not depending on attitude)
-
+  
   /* atmospheric density */
   {
     if (is_nonempty_string(config["atmospheric-density-model"]["model"])) {
@@ -302,6 +289,7 @@ dso::IntegrationParameters::from_config(const char *fn,
         const auto t1 =
             tt_start.add_seconds(dso::FractionalSeconds(-5 * 86400));
         const auto t2 = tt_stop.add_seconds(dso::FractionalSeconds(5 * 86400));
+        printf("Using Celestrak space weather data file: %s, with range [%.3f, %.3f)\n", swd.c_str(), t1.as_mjd(), t2.as_mjd());
         std::vector<dso::SpaceWeatherData> *tswdata =
             new std::vector<dso::SpaceWeatherData>();
         *tswdata = dso::load_celestrak_sw(swd.c_str(), t1, t2);

@@ -10,7 +10,6 @@
 #include "iers/solid_earth_tide.hpp"
 #include "rwatmo/nrlmsise.hpp"
 #include "sysnsats/attitude.hpp"
-#include "sysnsats/macromodel.hpp"
 
 namespace dso {
 
@@ -33,12 +32,14 @@ public:
   AtmosphericTide *mat_tide{nullptr};
   /* dealiasing */
   Aod1bDataStream<AOD1BCoefficientType::GLO> *mdealias{nullptr};
+
   /* sat. attitude */
-  dso::SatelliteAttitude *matt{nullptr};
+  dso::Attitude *matt{nullptr};
   /* attitude data/records for retrieving from stream */
-  dso::attitude_details::MeasuredAttitudeData *mattdata{nullptr};
+  // dso::attitude_details::MeasuredAttitudeData *mattdata{nullptr};
   /* satellite Macromodel */
-  dso::SatelliteMacromodel *msatmm{nullptr};
+  // dso::SatelliteMacromodel *msatmm{nullptr};
+
   /* space weather data */
   std::vector<dso::SpaceWeatherData> *mspwdata{nullptr};
   /* Atmospheric Density Model */

@@ -220,6 +220,12 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
     ac += dso::iers2010_relativistic_acceleration(y0, rsun);
   }
 
+  /* setup vectors that (maybe) needed for attitude */
+  Eigen::Vector3d avecs[3];
+  avecs[0] = rsun.segment<3>(0) - y0.segment<3>(0);
+  avecs[1] = y0.segment<3>(0);
+  avecs[2] = y0.segment<3>(3);
+
   /* Atmospheric Drag */
   if (params->mCd) {
     /* compute atmospheric density */
@@ -227,65 +233,30 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
     /* compute satellite velocity w.r.t atmosphere */
     const auto vr = y0.segment<3>(3) - omega.cross(y0.segment<3>(0));
     /* compute atmospheric drag acceleration */
-    if (params->matt) {
-      /* get attitude */
-      if (params->matt->attitude_at(tt, *(params->mattdata))) {
-        fprintf(stderr, "[ERROR] Failed getting attitude!\n");
-      }
-      /* we may need (depending on satellite) the satellite-to-sun vector */
-      Eigen::Vector3d sat2sun = rsun.segment<3>(0) - y0.segment<3>(0);
       /* compute acceleration */
       const Eigen::Vector3d tmp =
           /*ac +=*/(params->mCd) *
-          dso::atmospheric_drag(params->msatmm->rotate_macromodel(
-                                    params->mattdata->quaternions(),
-                                    params->mattdata->angles(), &sat2sun),
-                                vr, density, params->msatmm->satellite_mass());
+          dso::atmospheric_drag(params->matt->rotated_macromodel(tt, avecs),
+                                vr, density, params->matt->satellite_mass());
       // printf("> drag acc at %.12f=(%.5e %.5e %.5e) rho=%.5e\n",
       // tt.as_mjd(),
       //        tmp(0), tmp(1), tmp(2), density);
       ac += tmp;
-    }
   }
 
   /* Solar Radiation Pressure */
   if (params->mCr) {
+    /* occultation factor */
     const double of =
-        /* dso::conical_occultation(y0.segment<3>(0), rsun.segment<3>(0)); */
-        dso::conical_occultation(y0.segment<3>(0), rsun.segment<3>(0),
-                                 Eigen::Matrix<double, 3, 1>::Zero(),
-                                 ::iers2010::Re) *
-        dso::conical_occultation(y0.segment<3>(0), rsun.segment<3>(0), rmoon,
-                                 1737e3);
+        dso::conical_occultation(y0.segment<3>(0), rsun.segment<3>(0));
 
     if (of > 0e0) {
-      /* Solar Radiation Pressure */
-      if (params->matt) {
-        /* get attitude */
-        if (params->matt->attitude_at(tt, *(params->mattdata))) {
-          fprintf(stderr, "[ERROR] Failed getting attitude!\n");
-        }
-        /* we may need (depending on satellite) the satellite-to-sun vector */
-        Eigen::Vector3d sat2sun = rsun.segment<3>(0) - y0.segment<3>(0);
-        /* compute SRP acceleration */
+      /* Solar Radiation Pressure (acceleration) */
         const Eigen::Vector3d tmp =
             /*ac +=*/(params->mCr * of) *
-            dso::solar_radiation_pressure(params->msatmm->rotate_macromodel(
-                                              params->mattdata->quaternions(),
-                                              params->mattdata->angles(),
-                                              &sat2sun),
-                                          y0.segment<3>(0), rsun.segment<3>(0),
-                                          params->msatmm->satellite_mass());
-        // printf("> srp  acc at %.12f =(%.15f %.15f %.15f)\n", tt.as_mjd(),
-        //        tmp(0), tmp(1), tmp(2));
+            dso::solar_radiation_pressure(params->matt->rotated_macromodel(tt, avecs), y0.segment<3>(0), rsun.segment<3>(0), params->matt->satellite_mass());
         ac += tmp;
-      } else {
-        ac += (params->mCr * of) * dso::solar_radiation_pressure(
-                                       params->msatmm->srp_cannoball_area(),
-                                       y0.segment<3>(0), rsun.segment<3>(0),
-                                       params->msatmm->satellite_mass());
-      }
-    }
+      } 
   }
 
   /* form the derivative vector */
