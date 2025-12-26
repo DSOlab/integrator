@@ -24,7 +24,8 @@ constexpr const double EVERY_SEC = 180e0;
  */
 int prep_c2i(const dso::MjdEpoch &tai, dso::EopSeries &eops,
              Eigen::Quaterniond &q_c2tirs, Eigen::Quaterniond &q_tirs2i,
-             double *fargs, dso::EopRecord &eopr) noexcept {
+             double *fargs, dso::EopRecord &eopr) noexcept
+{
 
   /* epoch of request in TT */
   const auto tt = tai.tai2tt();
@@ -36,7 +37,8 @@ int prep_c2i(const dso::MjdEpoch &tai, dso::EopSeries &eops,
   dso::xycip06a(tt, Xcip, Ycip, fargs);
 
   /* interpolate EOPs */
-  if (dso::EopSeries::out_of_bounds(eops.interpolate(tt, eopr))) {
+  if (dso::EopSeries::out_of_bounds(eops.interpolate(tt, eopr)))
+  {
     fprintf(stderr, "Failed to interpolate: Epoch is out of bounds!\n");
     return 1;
   }
@@ -101,7 +103,8 @@ int prep_c2i(const dso::MjdEpoch &tai, dso::EopSeries &eops,
 
 int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
           dso::IntegrationParameters *params,
-          Eigen::Ref<Eigen::VectorXd> yp) noexcept {
+          Eigen::Ref<Eigen::VectorXd> yp) noexcept
+{
   /* epoch of request in TT */
   const auto tt =
       (params->t0().add_seconds(dso::FractionalSeconds(tsec))).tai2tt();
@@ -116,14 +119,16 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
 
   /* get Sun position & velocity in ICRF */
   Eigen::Matrix<double, 6, 1> rsun;
-  if (dso::planet_state(dso::Planet::SUN, tt, rsun)) {
+  if (dso::planet_state(dso::Planet::SUN, tt, rsun))
+  {
     fprintf(stderr, "ERROR Failed to compute Sun position!\n");
     return 100;
   }
 
   /* get Moon position in ICRF */
   Eigen::Matrix<double, 3, 1> rmoon;
-  if (dso::planet_pos(dso::Planet::MOON, tt, rmoon)) {
+  if (dso::planet_pos(dso::Planet::MOON, tt, rmoon))
+  {
     fprintf(stderr, "ERROR Failed to compute Moon position!\n");
     return 101;
   }
@@ -148,7 +153,8 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   auto acstokes{params->earth_gravity()};
 
   /* add Solid Earth Tides to SH coeffs */
-  if (params->solid_earth_tide()) {
+  if (params->solid_earth_tide())
+  {
     params->solid_earth_tide()->stokes_coeffs(
         tt, tt.tt2ut1(eopr.dut()), q_tirs2i * (q_c2tirs * rmoon),
         q_tirs2i * (q_c2tirs * rsun.segment<3>(0)), fargs);
@@ -157,13 +163,15 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   }
 
   /* add Ocean Tides to SH coeffs */
-  if (params->ocean_tide()) {
+  if (params->ocean_tide())
+  {
     params->ocean_tide()->stokes_coeffs(tt, tt.tt2ut1(eopr.dut()), fargs);
     acstokes += params->ocean_tide()->stokes_coeffs();
   }
 
   /* add Pole Tide to SH coeffs */
-  if (params->pole_tide()) {
+  if (params->pole_tide())
+  {
     double dC21, dS21;
     params->pole_tide()->stokes_coeffs(tt, eopr.xp(), eopr.yp(), dC21, dS21);
     acstokes.C(2, 1) += dC21;
@@ -171,8 +179,10 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   }
 
   /* add Ocean Pole Tide to SH coeffs */
-  if (params->ocean_pole_tide()) {
-    if (params->ocean_pole_tide()->stokes_coeffs(tt, eopr.xp(), eopr.yp())) {
+  if (params->ocean_pole_tide())
+  {
+    if (params->ocean_pole_tide()->stokes_coeffs(tt, eopr.xp(), eopr.yp()))
+    {
       fprintf(stderr, "ERROR Failed computing Stokes Coefficients\n");
       return 102;
     }
@@ -180,14 +190,16 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   }
 
   /* add deAliasing to SH coeffs */
-  if (params->dealias()) {
+  if (params->dealias())
+  {
     /*
     TODO!! WARNING!! The dealias instance should have a function that appends
     the coefficients at a StokesCoeffs instance!
     */
     auto tempstokes{params->earth_gravity()};
     if (params->dealias()->coefficients_at(
-            dso::from_mjdepoch<dso::nanoseconds>(tt), tempstokes)) {
+            dso::from_mjdepoch<dso::nanoseconds>(tt), tempstokes))
+    {
       fprintf(stderr, "Failed interpolating dealiasing coefficients\n");
       return 103;
     }
@@ -195,7 +207,8 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   }
 
   /* add atmospheric tides to SH coeffs */
-  if (params->atmospheric_tide()) {
+  if (params->atmospheric_tide())
+  {
     params->atmospheric_tide()->stokes_coeffs(tt, tt.tt2ut1(eopr.dut()), fargs);
     acstokes += params->atmospheric_tide()->stokes_coeffs();
   }
@@ -206,7 +219,8 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
                                   itrs.segment<3>(0), ai, gi,
                                   params->earth_gravity().max_degree(),
                                   params->earth_gravity().max_order(), -1, -1,
-                                  &(params->tw()), &(params->tm()))) {
+                                  &(params->tw()), &(params->tm())))
+  {
     fprintf(stderr, "ERROR Failed computing acceleration/gradient\n");
     return 104;
   }
@@ -227,36 +241,36 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   avecs[2] = y0.segment<3>(3);
 
   /* Atmospheric Drag */
-  if (params->mCd) {
+  if (params->mCd)
+  {
     /* compute atmospheric density */
     const double density = params->matmdens->density(itrs.segment<3>(0), tt);
     /* compute satellite velocity w.r.t atmosphere */
     const auto vr = y0.segment<3>(3) - omega.cross(y0.segment<3>(0));
     /* compute atmospheric drag acceleration */
-      /* compute acceleration */
-      const Eigen::Vector3d tmp =
-          /*ac +=*/(params->mCd) *
-          dso::atmospheric_drag(params->matt->rotated_macromodel(tt, avecs),
-                                vr, density, params->matt->satellite_mass());
-      // printf("> drag acc at %.12f=(%.5e %.5e %.5e) rho=%.5e\n",
-      // tt.as_mjd(),
-      //        tmp(0), tmp(1), tmp(2), density);
-      ac += tmp;
+    /* compute acceleration */
+    const Eigen::Vector3d tmp =
+        /*ac +=*/(params->mCd) *
+        dso::atmospheric_drag(params->matt->rotated_macromodel(tt, avecs),
+                              vr, density, params->matt->satellite_mass());
+    ac += tmp;
   }
 
   /* Solar Radiation Pressure */
-  if (params->mCr) {
+  if (params->mCr)
+  {
     /* occultation factor */
     const double of =
         dso::conical_occultation(y0.segment<3>(0), rsun.segment<3>(0));
 
-    if (of > 0e0) {
+    if (of > 0e0)
+    {
       /* Solar Radiation Pressure (acceleration) */
-        const Eigen::Vector3d tmp =
-            /*ac +=*/(params->mCr * of) *
-            dso::solar_radiation_pressure(params->matt->rotated_macromodel(tt, avecs), y0.segment<3>(0), rsun.segment<3>(0), params->matt->satellite_mass());
-        ac += tmp;
-      } 
+      const Eigen::Vector3d tmp =
+          /*ac +=*/(params->mCr * of) *
+          dso::solar_radiation_pressure(params->matt->rotated_macromodel(tt, avecs), y0.segment<3>(0), rsun.segment<3>(0), params->matt->satellite_mass());
+      ac += tmp;
+    }
   }
 
   /* form the derivative vector */
@@ -266,8 +280,10 @@ int deriv(double tsec, Eigen::Ref<const Eigen::VectorXd> y0,
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 3) {
+int main(int argc, char *argv[])
+{
+  if (argc < 3)
+  {
     fprintf(stderr, "Usage: %s [CONFIG] [SP3] \n", argv[0]);
     return 1;
   }
@@ -277,9 +293,11 @@ int main(int argc, char *argv[]) {
 
   /* choose satellite */
   dso::sp3::SatelliteId sv = sp3.sattellite_vector()[0];
-  if (argc > 3) {
+  if (argc > 3)
+  {
     /* check if the satellite is included in the Sp3 */
-    if (!sp3.has_sv(dso::sp3::SatelliteId(argv[3]))) {
+    if (!sp3.has_sv(dso::sp3::SatelliteId(argv[3])))
+    {
       fprintf(stderr, "Error. Satellite [%s] not included in sp3 file!\n",
               argv[3]);
       return 1;
@@ -289,7 +307,8 @@ int main(int argc, char *argv[]) {
 
   /* get starting epoch in TT */
   auto start_t = sp3.start_epoch();
-  if (!std::strcmp(sp3.time_sys(), "GPS")) {
+  if (!std::strcmp(sp3.time_sys(), "GPS"))
+  {
     start_t = start_t.gps2tai();
   }
 
@@ -316,17 +335,20 @@ int main(int argc, char *argv[]) {
   dso::Sp3DataBlock block;
   int sp3err = 0;
 
-  while (!sp3err) {
+  while (!sp3err)
+  {
     /* get next record from sp3 */
     sp3err = sp3.get_next_data_block(sv, block);
-    if (sp3err > 0) {
+    if (sp3err > 0)
+    {
       printf("Something went wrong ....status = %3d\n", sp3err);
       return 1;
     }
 
     /* time of current block in TAI */
     auto block_tai = block.t;
-    if (!std::strcmp(sp3.time_sys(), "GPS")) {
+    if (!std::strcmp(sp3.time_sys(), "GPS"))
+    {
       block_tai = block_tai.gps2tai();
     }
 
@@ -341,7 +363,8 @@ int main(int argc, char *argv[]) {
     y << block.state[0] * 1e3, block.state[1] * 1e3, block.state[2] * 1e3,
         block.state[4] * 1e-1, block.state[5] * 1e-1, block.state[6] * 1e-1;
 
-    if (!it) {
+    if (!it)
+    {
       /* transform state to GCRS (from ITRS) */
       Eigen::VectorXd yc = Eigen::Matrix<double, 6, 1>::Zero();
       yc.segment<3>(0) =
@@ -353,8 +376,10 @@ int main(int argc, char *argv[]) {
       t0 = tai;
       tp = t0;
       params.t0() = tai;
-    } else if (tai.diff<dso::DateTimeDifferenceType::FractionalSeconds>(tp)
-                   .seconds() >= EVERY_SEC) {
+    }
+    else if (tai.diff<dso::DateTimeDifferenceType::FractionalSeconds>(tp)
+                 .seconds() >= EVERY_SEC)
+    {
       /* seconds since initial epoch */
       dso::FractionalSeconds sec =
           tai.diff<dso::DateTimeDifferenceType::FractionalSeconds>(t0);
@@ -366,14 +391,17 @@ int main(int argc, char *argv[]) {
       /* note: we are starting from the top here, so reload the attitude
        * stream
        */
-      if (params.matt) {
-        if (params.matt->reload()) {
+      if (params.matt)
+      {
+        if (params.matt->reload())
+        {
           fprintf(stderr, "ERROR. Failed reloading attitude stream!\n");
           return -100;
         }
       }
 
-      if (dop853.integrate(0e0, sec.seconds(), y0, yc)) {
+      if (dop853.integrate(0e0, sec.seconds(), y0, yc))
+      {
         fprintf(stderr, "ERROR. Integration failed! sec is %.3f\n",
                 sec.seconds());
         return 1;
@@ -399,7 +427,7 @@ int main(int argc, char *argv[]) {
              omega.cross(q_tirs2i.conjugate() * y.segment<3>(0)));
         // const auto M = dso::cartesian2ntw(yri.segment<3>(0), yri.segment<3>(3));
         const auto M = dso::cartesian2rsw(yri.segment<3>(0), yri.segment<3>(3));
-        dr_ntw = M.transpose() * (yri.segment<3>(0)-yc.segment<3>(0));
+        dr_ntw = M.transpose() * (yri.segment<3>(0) - yc.segment<3>(0));
       }
 
       printf("%.9f %.3f %.3f %.3f %.6f %.6f %.6f %.3f %.3f %.3f %.6f %.6f "
