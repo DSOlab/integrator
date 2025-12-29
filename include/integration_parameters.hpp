@@ -35,10 +35,6 @@ public:
 
   /* sat. attitude */
   dso::Attitude *matt{nullptr};
-  /* attitude data/records for retrieving from stream */
-  // dso::attitude_details::MeasuredAttitudeData *mattdata{nullptr};
-  /* satellite Macromodel */
-  // dso::SatelliteMacromodel *msatmm{nullptr};
 
   /* space weather data */
   std::vector<dso::SpaceWeatherData> *mspwdata{nullptr};
@@ -151,6 +147,10 @@ public:
   Aod1bDataStream<AOD1BCoefficientType::GLO> *dealias() noexcept {
     return mdealias;
   }
+  double Cd() const noexcept { return mCd; }
+  double &Cd() noexcept { return mCd; }
+  double Cr() const noexcept { return mCr; }
+  double &Cr() noexcept { return mCr; }
 
   /** @brief Construct instance from a YAML configuration file. */
   static IntegrationParameters from_config(const char *config_fn,
